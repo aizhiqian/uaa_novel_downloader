@@ -1,0 +1,10 @@
+venv/
+.venv/
+.wdm/
+config/
+data/
+logs/
+output/
+src/__pycache__/
+.env
+chromedriver.exe

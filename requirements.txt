@@ -1,0 +1,7 @@
+selenium
+requests
+beautifulsoup4
+argparse
+Pillow
+dotenv
+webdriver_manager
