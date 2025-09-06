@@ -40,6 +40,7 @@ git clone https://github.com/aizhiqian/uaa_novel_downloader.git
 cd uaa_novel_downloader
 
 # 安装依赖
+python -m venv .venv
 pip install -r requirements.txt
 ```
 
