@@ -11,8 +11,8 @@ class Config:
     load_dotenv(ROOT_DIR / ".env")
 
     # 基础URL和网站信息
-    BASE_URL = "https://www.uaa001.com"
-    USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36'
+    BASE_URL = os.getenv("BASE_URL")
+    USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
 
     # 目录配置
     CONFIG_DIR = ROOT_DIR / "config"
@@ -27,7 +27,7 @@ class Config:
     COOKIE_FILE = DATA_DIR / "cookies.json"
     USERS_FILE = CONFIG_DIR / "users.txt"
     PROGRESS_FILE = DATA_DIR / "progress.json"
-    CHROMEDRIVER_PATH = ROOT_DIR / "chromedriver.exe"
+    # CHROMEDRIVER_PATH = ROOT_DIR / "chromedriver.exe"
 
     # 网络请求配置
     RETRY_COUNT = 3
