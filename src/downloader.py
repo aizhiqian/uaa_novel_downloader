@@ -1,9 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import time
-import json
 import re
-from pathlib import Path
 import sys
 from .config import Config
 from .auth import AuthManager
@@ -174,6 +172,7 @@ class NovelDownloader:
             print(f"📝 作者：{novel_info['author']}")
             print(f"🏷️ 题材：{novel_info['categories']}")
             print(f"📊 下载范围：第{start_chapter}章 至 第{end_chapter}章（共{end_chapter-start_chapter+1}章）")
+            print("💡 按 Ctrl+C 可随时停止下载")
 
             # 计算要跳过的章节数
             chapters_to_skip = start_chapter - 1
@@ -182,52 +181,65 @@ class NovelDownloader:
             # 选择写入模式
             file_mode = 'w' if start_chapter == 1 else 'a'
 
-            with open(output_path, file_mode, encoding='utf-8') as f:
-                # 只有从第1章开始下载时才写入小说信息
-                if start_chapter == 1:
-                    f.write(f"{title}\n作者：{novel_info['author']}\n题材：{novel_info['categories']}\n")
-                    f.write(f"标签：{novel_info['tags']}\n\n{novel_info['description']}\n\n\n")
+            try:
+                with open(output_path, file_mode, encoding='utf-8') as f:
+                    # 只有从第1章开始下载时才写入小说信息
+                    if start_chapter == 1:
+                        f.write(f"{title}\n作者：{novel_info['author']}\n题材：{novel_info['categories']}\n")
+                        f.write(f"标签：{novel_info['tags']}\n\n{novel_info['description']}\n\n\n")
 
-                for volume_title, chapters in volumes:
-                    if chapters_to_skip >= len(chapters):
-                        chapters_to_skip -= len(chapters)
-                        current_chapter += len(chapters)
-                        continue
-
-                    # 只在有卷标题时才进行卷标题的输出判断
-                    if volume_title:
-                        _, is_first_chapter = self._get_volume_info(current_chapter + chapters_to_skip, volumes)
-                        if (current_chapter == 1 and start_chapter == 1) or is_first_chapter:
-                            f.write(f"\n{volume_title}\n\n")
-
-                    for i, (url, chapter_title) in enumerate(chapters):
-                        if chapters_to_skip > 0:
-                            chapters_to_skip -= 1
-                            current_chapter += 1
+                    for volume_title, chapters in volumes:
+                        if chapters_to_skip >= len(chapters):
+                            chapters_to_skip -= len(chapters)
+                            current_chapter += len(chapters)
                             continue
+
+                        # 只在有卷标题时才进行卷标题的输出判断
+                        if volume_title:
+                            _, is_first_chapter = self._get_volume_info(current_chapter + chapters_to_skip, volumes)
+                            if (current_chapter == 1 and start_chapter == 1) or is_first_chapter:
+                                f.write(f"\n{volume_title}\n\n")
+
+                        for i, (url, chapter_title) in enumerate(chapters):
+                            if chapters_to_skip > 0:
+                                chapters_to_skip -= 1
+                                current_chapter += 1
+                                continue
+
+                            if current_chapter > end_chapter:
+                                break
+
+                            # 下载章节内容
+                            content = self.download_chapter(url, chapter_title)
+                            if content:
+                                f.write(f"\n{chapter_title}\n\n{content}\n\n")
+                                print(f"✅ [{current_chapter}/{end_chapter}] {chapter_title}")
+
+                                # 更新进度
+                                self.progress_mgr.update_progress(
+                                    novel_id, title, current_chapter + 1, total_chapters
+                                )
+
+                                # 如果还有更多章节要下载，则等待一段时间
+                                if current_chapter < end_chapter:
+                                    time.sleep(Config.CHAPTER_DELAY)
+
+                            current_chapter += 1
 
                         if current_chapter > end_chapter:
                             break
 
-                        # 下载章节内容
-                        content = self.download_chapter(url, chapter_title)
-                        if content:
-                            f.write(f"\n{chapter_title}\n\n{content}\n\n")
-                            print(f"✅ [{current_chapter}/{end_chapter}] {chapter_title}")
-
-                            # 更新进度
-                            self.progress_mgr.update_progress(
-                                novel_id, title, current_chapter + 1, total_chapters
-                            )
-
-                            # 如果还有更多章节要下载，则等待一段时间
-                            if current_chapter < end_chapter:
-                                time.sleep(Config.CHAPTER_DELAY)
-
-                        current_chapter += 1
-
-                    if current_chapter > end_chapter:
-                        break
+            except KeyboardInterrupt:
+                print(f"\n\n⚠️ 检测到 Ctrl+C，正在停止下载...")
+                # 保存当前进度
+                if current_chapter <= total_chapters:
+                    self.progress_mgr.update_progress(
+                        novel_id, title, current_chapter, total_chapters
+                    )
+                    print(f"📄 已下载内容保存在: {output_path}")
+                    print("💡 下次可以选择从当前位置继续下载")
+                print("👋 下载已停止")
+                return
 
             print(f"\n✅ 下载完成！")
             print(f"📄 文件保存在: {output_path}")
@@ -236,6 +248,10 @@ class NovelDownloader:
             # if end_chapter == total_chapters:
             #     self.progress_mgr.clear_progress(novel_id)
 
+        except KeyboardInterrupt:
+            print(f"\n\n⚠️ 检测到 Ctrl+C，下载已取消")
+            print("👋 程序退出")
+            return
         except Exception as e:
             self.logger.exception(f"下载小说失败: {str(e)}")
             raise Exception(f"下载失败: {str(e)}")
@@ -314,6 +330,9 @@ class NovelDownloader:
             else:
                 print("❌ 已取消下载")
 
+        except KeyboardInterrupt:
+            print(f"\n\n⚠️ 检测到 Ctrl+C，程序退出")
+            print("👋 再见！")
         except ValueError as e:
             print(f"❌ 输入有误：{str(e)}")
         except Exception as e:
