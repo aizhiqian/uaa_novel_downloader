@@ -96,97 +96,101 @@ class ProgressManager:
 
     def interactive_manage(self):
         """交互式管理下载进度"""
-        width = 80
-        print("\n" + "=" * width)
-        print("\033[92m" + "📊 下载进度管理工具".center(width) + "\033[0m")
-        print("=" * width)
-
-        # 显示当前所有进度
-        progress_data = self.load_progress()
-
-        if not progress_data:
-            print("📊 没有下载进度记录")
-            return
-
-        self.view_progress()
-
-        print("\n📝 请选择操作：")
-        print("  1. 继续下载某部小说")
-        print("  2. 清除某部小说的进度")
-        print("  3. 清除所有进度")
-        print("  0. 返回上级菜单")
-
         try:
-            choice = input("\n✏️ 输入选择 (0-3，q退出): ").strip()
+            width = 80
+            print("\n" + "=" * width)
+            print("\033[92m" + "📊 下载进度管理工具".center(width) + "\033[0m")
+            print("=" * width)
 
-            if choice.lower() == 'q' or choice == '0':
-                print("✅ 已取消操作")
+            # 显示当前所有进度
+            progress_data = self.load_progress()
+
+            if not progress_data:
+                print("📊 没有下载进度记录")
                 return
 
-            choice = int(choice)
+            self.view_progress()
 
-            if choice == 1:
-                # 继续下载
-                if not progress_data:
-                    print("❌ 没有可继续的下载记录")
-                    return
+            print("\n📝 请选择操作：")
+            print("  1. 继续下载某部小说")
+            print("  2. 清除某部小说的进度")
+            print("  3. 清除所有进度")
+            print("  0. 返回上级菜单")
 
-                novel_id = input("✏️ 请输入要继续下载的小说ID (输入q退出): ").strip()
+            try:
+                choice = input("\n✏️ 输入选择: ").strip()
 
-                if novel_id.lower() == 'q':
+                if choice.lower() == 'q' or choice == '0':
                     print("✅ 已取消操作")
                     return
 
-                if novel_id in progress_data:
-                    progress = progress_data[novel_id]
-                    print(f"\n📚 找到《{progress['title']}》的下载记录")
-                    print(f"📊 已下载进度: {progress['progress']} ({progress['percentage']}%)")
-                    print(f"📝 下一章节: 第{progress['next_chapter']}章")
+                choice = int(choice)
 
-                    confirm = input("\n✏️ 确认继续下载？(y/n): ").strip().lower()
-                    if confirm == 'y':
-                        from .downloader import NovelDownloader
-                        downloader = NovelDownloader()
-                        downloader.download_novel(
-                            novel_id=novel_id,
-                            start_chapter=progress['next_chapter']
-                        )
+                if choice == 1:
+                    # 继续下载
+                    if not progress_data:
+                        print("❌ 没有可继续的下载记录")
+                        return
+
+                    novel_id = input("✏️ 请输入要继续下载的小说ID (输入q退出): ").strip()
+
+                    if novel_id.lower() == 'q':
+                        print("✅ 已取消操作")
+                        return
+
+                    if novel_id in progress_data:
+                        progress = progress_data[novel_id]
+                        print(f"\n📚 找到《{progress['title']}》的下载记录")
+                        print(f"📊 已下载进度: {progress['progress']} ({progress['percentage']}%)")
+                        print(f"📝 下一章节: 第{progress['next_chapter']}章")
+
+                        confirm = input("\n✏️ 确认继续下载？(y/n): ").strip().lower()
+                        if confirm == 'y':
+                            from .downloader import NovelDownloader
+                            downloader = NovelDownloader()
+                            downloader.download_novel(
+                                novel_id=novel_id,
+                                start_chapter=progress['next_chapter']
+                            )
+                        else:
+                            print("❌ 已取消继续下载")
                     else:
-                        print("❌ 已取消继续下载")
-                else:
-                    print(f"❌ 未找到小说ID {novel_id} 的下载进度")
+                        print(f"❌ 未找到小说ID {novel_id} 的下载进度")
 
-            elif choice == 2:
-                # 清除某部小说的进度
-                novel_id = input("✏️ 请输入要清除进度的小说ID (输入q退出): ").strip()
+                elif choice == 2:
+                    # 清除某部小说的进度
+                    novel_id = input("✏️ 请输入要清除进度的小说ID (输入q退出): ").strip()
 
-                if novel_id.lower() == 'q':
-                    print("✅ 已取消操作")
-                    return
+                    if novel_id.lower() == 'q':
+                        print("✅ 已取消操作")
+                        return
 
-                if novel_id in progress_data:
-                    title = progress_data[novel_id]['title']
-                    confirm = input(f"\n⚠️ 确认清除《{title}》的下载进度？(y/n): ").strip().lower()
+                    if novel_id in progress_data:
+                        title = progress_data[novel_id]['title']
+                        confirm = input(f"\n⚠️ 确认清除《{title}》的下载进度？(y/n): ").strip().lower()
+
+                        if confirm == 'y':
+                            self.clear_progress(novel_id)
+                            print(f"✅ 已清除《{title}》的下载进度")
+                        else:
+                            print("❌ 已取消清除操作")
+                    else:
+                        print(f"❌ 未找到小说ID {novel_id} 的下载进度")
+
+                elif choice == 3:
+                    # 清除所有进度
+                    confirm = input("\n⚠️ 确认清除所有下载进度？(y/n): ").strip().lower()
 
                     if confirm == 'y':
-                        self.clear_progress(novel_id)
-                        print(f"✅ 已清除《{title}》的下载进度")
+                        self.clear_all_progress()
+                        print("✅ 已清除所有下载进度")
                     else:
                         print("❌ 已取消清除操作")
-                else:
-                    print(f"❌ 未找到小说ID {novel_id} 的下载进度")
 
-            elif choice == 3:
-                # 清除所有进度
-                confirm = input("\n⚠️ 确认清除所有下载进度？(y/n): ").strip().lower()
+            except ValueError:
+                print("❌ 请输入有效的数字")
+            except Exception as e:
+                print(f"❌ 操作失败：{str(e)}")
 
-                if confirm == 'y':
-                    self.clear_all_progress()
-                    print("✅ 已清除所有下载进度")
-                else:
-                    print("❌ 已取消清除操作")
-
-        except ValueError:
-            print("❌ 请输入有效的数字")
-        except Exception as e:
-            print(f"❌ 操作失败：{str(e)}")
+        except KeyboardInterrupt:
+            print("\n👋 进度管理工具已退出")

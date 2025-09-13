@@ -14,22 +14,30 @@ from src.config import Config, setup_directories
 
 def setup_command(args):
     """初始化项目目录结构和配置"""
-    setup_directories()
-    print("✅ 项目初始化完成！请编辑config目录下的users.txt文件添加您的账号信息")
+    try:
+        setup_directories()
+        print("✅ 项目初始化完成！请编辑config目录下的users.txt文件添加您的账号信息")
+    except KeyboardInterrupt:
+        print("\n👋 操作已取消")
+        sys.exit(0)
 
 def login_command(args):
     """登录并获取Cookie"""
-    auth = AuthManager()
-    if args.user:
-        auth.login(user_id=args.user)
-    else:
-        auth.login()
+    try:
+        auth = AuthManager()
+        if args.user:
+            auth.login(user_id=args.user)
+        else:
+            auth.login()
+    except KeyboardInterrupt:
+        print("\n👋 登录已取消")
+        sys.exit(0)
 
 def download_command(args):
     """下载小说"""
     logger = setup_logger('downloader')
     try:
-        downloader = NovelDownloader()
+        downloader = NovelDownloader(user_id=args.user)
 
         # 交互式使用
         if not args.novel_id:
@@ -55,67 +63,82 @@ def download_command(args):
             start_chapter=args.start,
             end_chapter=end_chapter
         )
+    except KeyboardInterrupt:
+        print("\n👋 下载已取消")
+        sys.exit(0)
     except Exception as e:
         logger.exception(f"下载过程中发生错误: {str(e)}")
         print(f"❌ 下载失败: {str(e)}")
 
 def progress_command(args):
     """管理下载进度"""
-    progress_mgr = ProgressManager()
+    try:
+        progress_mgr = ProgressManager()
 
-    # 交互式使用
-    if not any([args.view, args.resume, args.clear]):
-        progress_mgr.interactive_manage()
-        return
-
-    if args.view:
-        progress_mgr.view_progress()
-    elif args.resume:
-        if not args.novel_id:
-            print("❌ 使用 --resume 时必须指定 --novel-id 参数")
+        # 交互式使用
+        if not any([args.view, args.resume, args.clear]):
+            progress_mgr.interactive_manage()
             return
 
-        # 获取进度并继续下载
-        progress = progress_mgr.get_novel_progress(args.novel_id)
-        if progress:
-            print(f"📚 继续下载《{progress['title']}》，从第{progress['next_chapter']}章开始")
-            downloader = NovelDownloader()
-            downloader.download_novel(
-                novel_id=args.novel_id,
-                start_chapter=progress['next_chapter']
-            )
-        else:
-            print(f"❌ 未找到小说ID {args.novel_id} 的下载进度")
+        if args.view:
+            progress_mgr.view_progress()
+        elif args.resume:
+            if not args.novel_id:
+                print("❌ 使用 --resume 时必须指定 --novel-id 参数")
+                return
 
-    elif args.clear:
-        if args.novel_id:
-            progress_mgr.clear_progress(args.novel_id)
-            print(f"✅ 已清除小说ID {args.novel_id} 的下载进度")
-        else:
-            progress_mgr.clear_all_progress()
-            print("✅ 已清除所有下载进度")
+            # 获取进度并继续下载
+            progress = progress_mgr.get_novel_progress(args.novel_id)
+            if progress:
+                print(f"📚 继续下载《{progress['title']}》，从第{progress['next_chapter']}章开始")
+                downloader = NovelDownloader()
+                downloader.download_novel(
+                    novel_id=args.novel_id,
+                    start_chapter=progress['next_chapter']
+                )
+            else:
+                print(f"❌ 未找到小说ID {args.novel_id} 的下载进度")
+
+        elif args.clear:
+            if args.novel_id:
+                progress_mgr.clear_progress(args.novel_id)
+                print(f"✅ 已清除小说ID {args.novel_id} 的下载进度")
+            else:
+                progress_mgr.clear_all_progress()
+                print("✅ 已清除所有下载进度")
+    except KeyboardInterrupt:
+        print("\n👋 进度管理已取消")
+        sys.exit(0)
 
 def modify_command(args):
     """修改章节编号"""
-    modifier = ChapterModifier()
+    try:
+        modifier = ChapterModifier()
 
-    if args.file:
-        if args.start_name and args.end_name and args.increment is not None:
-            # 使用章节名修改
-            modifier.modify_chapters_by_name(args.file, args.start_name, args.end_name, args.increment)
-        elif args.start and args.end is not None and args.increment is not None:
-            # 使用章节编号修改
-            modifier.modify_chapters(args.file, args.start, args.end, args.increment)
+        if args.file:
+            if args.start_name and args.end_name and args.increment is not None:
+                # 使用章节名修改
+                modifier.modify_chapters_by_name(args.file, args.start_name, args.end_name, args.increment)
+            elif args.start and args.end is not None and args.increment is not None:
+                # 使用章节编号修改
+                modifier.modify_chapters(args.file, args.start, args.end, args.increment)
+            else:
+                print("❌ 请指定修改参数")
         else:
-            print("❌ 请指定修改参数")
-    else:
-        # 交互式使用
-        modifier.interactive_modify()
+            # 交互式使用
+            modifier.interactive_modify()
+    except KeyboardInterrupt:
+        print("\n👋 章节修改已取消")
+        sys.exit(0)
 
 def extract_command(args):
     """生成章节提取脚本"""
-    generator = ExtractScriptGenerator()
-    generator.generate_script()
+    try:
+        generator = ExtractScriptGenerator()
+        generator.generate_script()
+    except KeyboardInterrupt:
+        print("\n👋 脚本生成已取消")
+        sys.exit(0)
 
 def main():
     """主函数，解析命令行参数并执行对应命令"""
@@ -127,7 +150,7 @@ def main():
 
     # login命令
     login_parser = subparsers.add_parser('login', help='登录并获取Cookie')
-    login_parser.add_argument('--user', type=int, help='指定用户ID')
+    login_parser.add_argument('--user', help='指定用户ID或"all"表示所有用户')
 
     # download命令
     download_parser = subparsers.add_parser('download', help='下载小说')
@@ -135,6 +158,7 @@ def main():
     download_parser.add_argument('--start', type=int, default=1, help='起始章节 (默认: 1)')
     download_parser.add_argument('--end', type=int, help='结束章节')
     download_parser.add_argument('--count', type=int, help='要下载的章节数量')
+    download_parser.add_argument('--user', type=int, help='指定用户ID')
 
     # progress命令
     progress_parser = subparsers.add_parser('progress', help='管理下载进度')

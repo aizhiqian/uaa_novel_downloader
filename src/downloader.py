@@ -11,20 +11,25 @@ from .progress import ProgressManager
 class NovelDownloader:
     """小说下载器核心类"""
 
-    def __init__(self):
+    def __init__(self, user_id=None):
         """初始化下载器"""
         self.logger = setup_logger('downloader')
         self.auth = AuthManager()
         self.progress_mgr = ProgressManager()
         self.session = requests.Session()
+        self.user_id = user_id
         self.headers = {
             'User-Agent': Config.USER_AGENT
         }
 
-        # 获取Cookie
-        cookie = self.auth.get_cookie()
+        # 如果没有指定user_id，提示用户选择
+        if user_id is None:
+            self.user_id = self._select_user()
+
+        # 获取Cookie，如果失败尝试重新登录
+        cookie = self._get_valid_cookie()
         if not cookie:
-            print("❌ 获取Cookie失败，请先登录")
+            print("❌ 无法获取有效Cookie，程序退出")
             sys.exit(1)
 
         self.headers['Cookie'] = cookie
@@ -32,6 +37,63 @@ class NovelDownloader:
 
         # 确保输出目录存在
         Config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    def _select_user(self):
+        """选择用户"""
+        users = self.auth.read_users()
+        if not users:
+            print("❌ 错误：未找到可用账号，请先编辑config/users.txt文件")
+            sys.exit(1)
+
+        if len(users) == 1:
+            # 只有一个用户，直接使用
+            print(f"📱 使用唯一账号: {users[0]['email']}")
+            return users[0]['num']
+
+        while True:
+            try:
+                choice_input = input("\n✏️ 请选择要使用的账号序号: ").strip()
+
+                if not choice_input:
+                    # 用户按回车，使用第一个账号
+                    return users[0]['num']
+
+                choice = int(choice_input)
+                selected_user = next((u for u in users if u['num'] == choice), None)
+                if selected_user:
+                    return choice
+                print("❌ 无效的序号，请重新选择")
+            except ValueError:
+                print("❌ 请输入数字")
+            except KeyboardInterrupt:
+                print("\n👋 程序退出")
+                sys.exit(0)
+
+    def _get_valid_cookie(self):
+        """获取有效的Cookie，如果过期则尝试重新登录"""
+        # 首先尝试获取现有Cookie
+        cookie = self.auth.get_cookie(self.user_id)
+
+        if cookie:
+            print(f"✅ 使用已保存的Cookie (用户ID: {self.user_id})")
+            return cookie
+
+        # Cookie无效或过期，尝试重新登录
+        print(f"⚠️ 用户 {self.user_id} 的Cookie无效或已过期，正在尝试重新登录...")
+
+        try:
+            self.auth.login(self.user_id)
+            # 重新获取Cookie
+            cookie = self.auth.get_cookie(self.user_id)
+            if cookie:
+                print(f"✅ 重新登录成功，已获取新的Cookie")
+                return cookie
+            else:
+                print(f"❌ 重新登录后仍无法获取Cookie")
+                return None
+        except Exception as e:
+            print(f"❌ 重新登录失败: {str(e)}")
+            return None
 
     def get_response(self, url, retry=Config.RETRY_COUNT):
         """获取网页响应，带重试功能"""
@@ -258,82 +320,85 @@ class NovelDownloader:
 
     def interactive_download(self):
         """交互式下载小说"""
-        width = 80
-        print("\n" + "=" * width)
-        print("\033[92m" + "📚 小说下载工具".center(width) + "\033[0m")
-        print("=" * width)
-
         try:
-            # 输入小说ID
-            novel_id = input("✏️ 请输入小说ID (输入q退出): ").strip()
-            if not novel_id:
-                print("❌ 小说ID不能为空")
-                return
-            if novel_id.lower() == 'q':
-                print("✅ 已取消操作")
-                return
+            width = 80
+            print("\n" + "=" * width)
+            print("\033[92m" + "📚 小说下载工具".center(width) + "\033[0m")
+            print("=" * width)
+            print(f"👤 当前使用账号ID: {self.user_id}")
 
-            # 获取小说信息
-            print(f"🔍 正在获取小说《{novel_id}》的信息...")
-            novel_info = self.get_novel_info(novel_id)
-
-            print(f"\n📕 小说信息")
-            print(f"  标题：{novel_info['title']}")
-            print(f"  作者：{novel_info['author']}")
-            print(f"  题材：{novel_info['categories']}")
-            print(f"  总章节数：{novel_info['total_chapters']}")
-
-            # 检查是否有下载记录
-            progress = self.progress_mgr.get_novel_progress(novel_id)
-            if progress:
-                print(f"\n⏱️ 已有下载记录，上次下载到第{progress['next_chapter']-1}章")
-                choice = input("✏️ 是否从上次位置继续下载？(y/n/q退出): ").strip().lower()
-
-                if choice == 'q':
+            try:
+                # 输入小说ID
+                novel_id = input("✏️ 请输入小说ID: ").strip()
+                if not novel_id:
+                    print("❌ 小说ID不能为空")
+                    return
+                if novel_id.lower() == 'q':
                     print("✅ 已取消操作")
                     return
-                elif choice == 'y':
-                    start_chapter = progress['next_chapter']
+
+                # 获取小说信息
+                print(f"🔍 正在获取小说《{novel_id}》的信息...")
+                novel_info = self.get_novel_info(novel_id)
+
+                print(f"\n📕 小说信息")
+                print(f"  标题：{novel_info['title']}")
+                print(f"  作者：{novel_info['author']}")
+                print(f"  题材：{novel_info['categories']}")
+                print(f"  总章节数：{novel_info['total_chapters']}")
+
+                # 检查是否有下载记录
+                progress = self.progress_mgr.get_novel_progress(novel_id)
+                if progress:
+                    print(f"\n⏱️ 已有下载记录，上次下载到第{progress['next_chapter']-1}章")
+                    choice = input("✏️ 是否从上次位置继续下载？(y/n/q退出): ").strip().lower()
+
+                    if choice == 'q':
+                        print("✅ 已取消操作")
+                        return
+                    elif choice == 'y':
+                        start_chapter = progress['next_chapter']
+                    else:
+                        start_input = input(f"✏️ 请输入起始章节 (1-{novel_info['total_chapters']}，输入q退出): ").strip()
+                        if start_input.lower() == 'q':
+                            print("✅ 已取消操作")
+                            return
+                        start_chapter = int(start_input) if start_input else 1
                 else:
                     start_input = input(f"✏️ 请输入起始章节 (1-{novel_info['total_chapters']}，输入q退出): ").strip()
                     if start_input.lower() == 'q':
                         print("✅ 已取消操作")
                         return
                     start_chapter = int(start_input) if start_input else 1
-            else:
-                start_input = input(f"✏️ 请输入起始章节 (1-{novel_info['total_chapters']}，输入q退出): ").strip()
-                if start_input.lower() == 'q':
+
+                # 输入结束章节
+                end_choice = input(f"✏️ 是否下载至最后一章？(y/n/q退出): ").strip().lower()
+                if end_choice == 'q':
                     print("✅ 已取消操作")
                     return
-                start_chapter = int(start_input) if start_input else 1
+                elif end_choice == 'y':
+                    end_chapter = novel_info['total_chapters']
+                else:
+                    end_input = input(f"✏️ 请输入结束章节 ({start_chapter}-{novel_info['total_chapters']}，输入q退出): ").strip()
+                    if end_input.lower() == 'q':
+                        print("✅ 已取消操作")
+                        return
+                    end_chapter = int(end_input) if end_input else novel_info['total_chapters']
 
-            # 输入结束章节
-            end_choice = input(f"✏️ 是否下载至最后一章？(y/n/q退出): ").strip().lower()
-            if end_choice == 'q':
-                print("✅ 已取消操作")
-                return
-            elif end_choice == 'y':
-                end_chapter = novel_info['total_chapters']
-            else:
-                end_input = input(f"✏️ 请输入结束章节 ({start_chapter}-{novel_info['total_chapters']}，输入q退出): ").strip()
-                if end_input.lower() == 'q':
-                    print("✅ 已取消操作")
-                    return
-                end_chapter = int(end_input) if end_input else novel_info['total_chapters']
+                # 确认下载
+                print(f"\n📝 即将下载《{novel_info['title']}》第{start_chapter}章至第{end_chapter}章，共{end_chapter-start_chapter+1}章")
+                confirm = input("✏️ 确认下载？(y/n): ").strip().lower()
 
-            # 确认下载
-            print(f"\n📝 即将下载《{novel_info['title']}》第{start_chapter}章至第{end_chapter}章，共{end_chapter-start_chapter+1}章")
-            confirm = input("✏️ 确认下载？(y/n): ").strip().lower()
-
-            if confirm == 'y':
-                self.download_novel(novel_id, start_chapter, end_chapter)
-            else:
-                print("❌ 已取消下载")
+                if confirm == 'y':
+                    self.download_novel(novel_id, start_chapter, end_chapter)
+                else:
+                    print("❌ 已取消下载")
+            except KeyboardInterrupt:
+                print(f"\n\n⚠️ 程序退出")
+            except ValueError as e:
+                print(f"❌ 输入有误：{str(e)}")
+            except Exception as e:
+                print(f"❌ 下载失败：{str(e)}")
 
         except KeyboardInterrupt:
-            print(f"\n\n⚠️ 检测到 Ctrl+C，程序退出")
-            print("👋 再见！")
-        except ValueError as e:
-            print(f"❌ 输入有误：{str(e)}")
-        except Exception as e:
-            print(f"❌ 下载失败：{str(e)}")
+            print(f"\n👋 小说下载工具已退出")

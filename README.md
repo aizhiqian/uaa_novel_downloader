@@ -11,7 +11,7 @@
 ### 🔐 智能登录系统
 - 🤖 **AI验证码识别** - 使用AI API自动识别数学验证码
 - 👥 **多账号管理** - 支持配置多个账号，灵活切换
-- 🍪 **Cookie自动管理** - 自动保存和验证Cookie有效性
+- 🍪 **Cookie自动管理** - 自动保存和验证Cookie有效性，支持多用户Cookie同时存储
 
 ### 📖 下载功能
 - 📚 **完整小说下载** - 支持下载整本小说
@@ -30,7 +30,7 @@
 
 - 🐍 Python 3.7 或更高版本
 - 🌐 Chrome 浏览器
-- 🔑 支持视觉识别的AI API（如OpenAI GPT-4V、Claude等）
+- 🔑 支持视觉识别的AI API（如OpenAI、Claude等）
 
 ### 📦 安装依赖
 
@@ -52,6 +52,11 @@ pip install -r requirements.txt
    ```
 
 2. **配置AI API** - 创建 `.env` 文件：
+
+   ```bash
+   cp .env.example .env
+   ```
+
    ```env
    AI_API_BASE_URL=Full_API_request_address
    AI_API_KEY=your_api_key_here
@@ -73,6 +78,9 @@ python main.py login
 
 # 使用指定账号登录
 python main.py login --user 1
+
+# 登陆所有账户
+python main.py login --user all
 ```
 
 #### 📚 下载小说
@@ -83,11 +91,14 @@ python main.py download
 # 下载整本小说
 python main.py download 12345
 
+# 使用指定用户下载
+python main.py download 12345 --user 2
+
 # 下载指定范围
 python main.py download 12345 --start 1 --end 50
 
 # 下载指定数量
-python main.py download 12345 --start 10 --count 20
+python main.py download 12345 --start 10 --count 20 --user 1
 ```
 
 #### 📊 管理进度
@@ -205,7 +216,7 @@ AI_MODEL=your-model-name
 
 2. **日常使用**
    ```bash
-   # 直接下载（Cookie有效时）
+   # 程序会自动选择有效的Cookie
    python main.py download 12345
 
    # 继续上次的下载
@@ -222,13 +233,14 @@ AI_MODEL=your-model-name
 
 ### 🔐 登录相关
 
-**Q: 验证码识别失败怎么办？**
-- 检查AI API配置是否正确
-- 确认API Key有效且有足够额度
-- 尝试更换AI模型
+**Q: 多用户Cookie如何管理？**
+- 系统会自动为每个用户维护独立的Cookie
+- 如果某个用户的Cookie过期，只需重新登录该用户
+- 下载时可以指定用户，或让程序自动选择有效Cookie
 
-**Q: Cookie过期怎么办？**
-- 程序会自动提示，重新运行登录命令即可
+**Q: 如何查看哪些用户的Cookie仍然有效？**
+- 在交互式下载时，程序会显示所有可用用户
+- 可以通过 `--user` 参数指定特定用户
 
 ### 📥 下载相关
 

@@ -145,90 +145,95 @@ class ChapterModifier:
 
     def interactive_modify(self):
         """交互式修改章节编号"""
-        width = 80
-        print("\n" + "=" * width)
-        print("\033[92m" + "📝 章节编号修改工具".center(width) + "\033[0m")
-        print("=" * width)
+        try:
+            width = 80
+            print("\n" + "=" * width)
+            print("\033[92m" + "📝 章节编号修改工具".center(width) + "\033[0m")
+            print("=" * width)
 
-        # 显示可用的小说文件
-        print("\n可用小说文件:")
-        novels = list(Config.OUTPUT_DIR.glob("*.txt"))
+            # 显示可用的小说文件
+            print("\n可用小说文件:")
+            novels = list(Config.OUTPUT_DIR.glob("*.txt"))
 
-        if not novels:
-            print("❌ 没有找到小说文件，请先下载小说")
-            return
+            if not novels:
+                print("❌ 没有找到小说文件，请先下载小说")
+                return
 
-        for i, novel in enumerate(novels):
-            print(f"{i+1}. {novel.name}")
-        print("0. 取消并退出")
+            for i, novel in enumerate(novels):
+                print(f"{i+1}. {novel.name}")
+            print("0. 取消并退出")
 
-        # 选择文件
-        while True:
+            # 选择文件
+            while True:
+                try:
+                    choice = input("\n✏️ 请选择要修改的文件序号: ").strip()
+                    if not choice:
+                        print("❌ 未输入任何内容，请重新选择")
+                        continue
+
+                    choice = int(choice)
+                    if choice == 0:
+                        print("✅ 已取消操作")
+                        return
+                    elif 1 <= choice <= len(novels):
+                        filepath = novels[choice-1]
+                        break
+                    else:
+                        print("❌ 无效的序号，请重新选择")
+                except ValueError:
+                    print("❌ 请输入数字")
+                except KeyboardInterrupt:
+                    print("\n👋 操作已取消")
+                    return
+
+            # 选择修改模式
+            print("\n📝 请选择修改模式：")
+            print("  1. 按章节编号修改")
+            print("  2. 按章节名称修改（推荐）")
+            print("  0. 返回上级菜单")
+
             try:
-                choice = input("\n✏️ 请选择要修改的文件序号: ").strip()
-                if not choice:
-                    print("❌ 未输入任何内容，请重新选择")
-                    continue
+                mode_choice = input("\n✏️ 请选择模式: ").strip()
 
-                choice = int(choice)
-                if choice == 0:
+                if mode_choice == '0':
                     print("✅ 已取消操作")
                     return
-                elif 1 <= choice <= len(novels):
-                    filepath = novels[choice-1]
-                    break
+                elif mode_choice == '1':
+                    # 按编号修改
+                    start_chapter = int(input("✏️ 请输入开始章节数: "))
+                    end_chapter = int(input("✏️ 请输入结束章节数: "))
+                    increment = int(input("✏️ 请输入章节修改值(+/-数字): "))
+
+                    if start_chapter > end_chapter:
+                        print("❌ 开始章节不能大于结束章节!")
+                        return
+
+                    self.modify_chapters(filepath, start_chapter, end_chapter, increment)
+
+                elif mode_choice == '2':
+                    # 按章节名修改
+                    start_name = input("✏️ 请输入开始章节名称: ").strip()
+                    if not start_name:
+                        print("❌ 开始章节名称不能为空")
+                        return
+
+                    end_name = input("✏️ 请输入结束章节名称: ").strip()
+                    if not end_name:
+                        print("❌ 结束章节名称不能为空")
+                        return
+
+                    increment = int(input("✏️ 请输入章节修改值(+/-数字): "))
+
+                    self.modify_chapters_by_name(filepath, start_name, end_name, increment)
+
                 else:
-                    print("❌ 无效的序号，请重新选择")
-            except ValueError:
-                print("❌ 请输入数字")
+                    print("❌ 无效的选择")
 
-        # 选择修改模式
-        print("\n📝 请选择修改模式：")
-        print("  1. 按章节编号修改")
-        print("  2. 按章节名称修改（推荐）")
-        print("  0. 返回上级菜单")
+            except ValueError as e:
+                print(f"❌ 请输入有效的数字! {str(e)}")
 
-        try:
-            mode_choice = input("\n✏️ 请选择模式 (0-2): ").strip()
-
-            if mode_choice == '0':
-                print("✅ 已取消操作")
-                return
-            elif mode_choice == '1':
-                # 按编号修改
-                start_chapter = int(input("✏️ 请输入开始章节数: "))
-                end_chapter = int(input("✏️ 请输入结束章节数: "))
-                increment = int(input("✏️ 请输入章节修改值(+/-数字): "))
-
-                if start_chapter > end_chapter:
-                    print("❌ 开始章节不能大于结束章节!")
-                    return
-
-                self.modify_chapters(filepath, start_chapter, end_chapter, increment)
-
-            elif mode_choice == '2':
-                # 按章节名修改
-                start_name = input("✏️ 请输入开始章节名称: ").strip()
-                if not start_name:
-                    print("❌ 开始章节名称不能为空")
-                    return
-
-                end_name = input("✏️ 请输入结束章节名称: ").strip()
-                if not end_name:
-                    print("❌ 结束章节名称不能为空")
-                    return
-
-                increment = int(input("✏️ 请输入章节修改值(+/-数字): "))
-
-                self.modify_chapters_by_name(filepath, start_name, end_name, increment)
-
-            else:
-                print("❌ 无效的选择")
-
-        except ValueError as e:
-            print(f"❌ 请输入有效的数字! {str(e)}")
         except KeyboardInterrupt:
-            print("\n✅ 已取消操作")
+            print("\n👋 章节修改工具已退出")
 
 class ExtractScriptGenerator:
     """章节提取脚本生成器"""

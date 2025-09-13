@@ -98,38 +98,162 @@ class AuthManager:
 
     def login(self, user_id=None):
         """登录并获取Cookie"""
-        users = self.read_users()
-        if not users:
-            self.logger.error("没有可用的账号")
-            print("❌ 错误：未找到可用账号，请先编辑config/users.txt文件")
-            sys.exit(1)
-
-        # 选择用户
-        selected_user = None
-        if user_id:
-            selected_user = next((u for u in users if u['num'] == user_id), None)
-            if not selected_user:
-                self.logger.error(f"未找到编号为{user_id}的用户")
-                print(f"❌ 错误：未找到编号为{user_id}的用户")
+        try:
+            users = self.read_users()
+            if not users:
+                self.logger.error("没有可用的账号")
+                print("❌ 错误：未找到可用账号，请先编辑config/users.txt文件")
                 sys.exit(1)
-        else:
-            # 显示可用账号让用户选择
-            print("\n📝 可用账号列表：")
-            for user in users:
-                print(f"  {user['num']}. {user['email']}")
 
-            while True:
+            # 处理 "all" 参数，为所有用户登录
+            if user_id == "all":
+                self.logger.info("开始为所有用户登录")
+                print(f"\n🔑 开始为所有 {len(users)} 个账号登录...")
+
+                success_count = 0
+                failed_users = []
+
+                for i, user in enumerate(users, 1):
+                    print(f"\n{'='*50}")
+                    print(f"正在处理第 {i}/{len(users)} 个账号: {user['email']}")
+                    print(f"{'='*50}")
+
+                    # 检查该用户的Cookie是否已存在且有效
+                    existing_cookie = self.get_cookie(user['num'])
+                    if existing_cookie:
+                        print(f"✅ 账号 {user['email']} 的Cookie仍然有效，跳过登录")
+                        self.logger.info(f"用户 {user['num']} 的Cookie有效，跳过登录")
+                        success_count += 1
+                        continue
+
+                    try:
+                        self._selenium_login(user)
+                        success_count += 1
+                        print(f"✅ 账号 {user['email']} 登录成功")
+                    except KeyboardInterrupt:
+                        print(f"\n👋 登录已取消，程序退出")
+                        sys.exit(0)
+                    except Exception as e:
+                        self.logger.error(f"账号 {user['email']} 登录失败: {str(e)}")
+                        print(f"❌ 账号 {user['email']} 登录失败: {str(e)}")
+                        failed_users.append(user['num'])
+
+                    # 在账号之间添加短暂延迟
+                    if i < len(users):
+                        print("⏳ 等待 3 秒后继续下一个账号...")
+                        time.sleep(3)
+
+                # 显示总结
+                print(f"\n{'='*50}")
+                print(f"📊 登录完成统计:")
+                print(f"  ✅ 成功/跳过: {success_count}/{len(users)}")
+                print(f"  ❌ 失败: {len(failed_users)}/{len(users)}")
+                if failed_users:
+                    print(f"  ❌ 失败账号: {', '.join(map(str, failed_users))}")
+                print(f"{'='*50}")
+
+                return
+
+            # 选择用户
+            selected_user = None
+            if user_id:
+                # 尝试将 user_id 转换为整数
                 try:
-                    choice = int(input("\n✏️ 请选择要使用的账号序号: "))
-                    selected_user = next((u for u in users if u['num'] == choice), None)
-                    if selected_user:
-                        break
-                    print("❌ 无效的序号，请重新选择")
+                    user_id_int = int(user_id)
+                    selected_user = next((u for u in users if u['num'] == user_id_int), None)
+                    if not selected_user:
+                        self.logger.error(f"未找到编号为{user_id_int}的用户")
+                        print(f"❌ 错误：未找到编号为{user_id_int}的用户")
+                        sys.exit(1)
                 except ValueError:
-                    print("❌ 请输入数字")
+                    self.logger.error(f"无效的用户ID: {user_id}")
+                    print(f"❌ 错误：无效的用户ID: {user_id}")
+                    sys.exit(1)
+            else:
+                # 显示可用账号让用户选择
+                print("\n📝 可用账号列表：")
+                for user in users:
+                    # 检查Cookie状态
+                    cookie_status = ""
+                    existing_cookie = self.get_cookie(user['num'])
+                    if existing_cookie:
+                        cookie_status = " [Cookie有效]"
+                    else:
+                        cookie_status = " [需要登录]"
+                    print(f"  {user['num']}. {user['email']}{cookie_status}")
 
-        # 登录获取Cookie
-        self._selenium_login(selected_user)
+                while True:
+                    try:
+                        choice = int(input("\n✏️ 请选择要使用的账号序号: "))
+                        selected_user = next((u for u in users if u['num'] == choice), None)
+                        if selected_user:
+                            break
+                        print("❌ 无效的序号，请重新选择")
+                    except ValueError:
+                        print("❌ 请输入数字")
+                    except KeyboardInterrupt:
+                        print("\n👋 登录已取消")
+                        sys.exit(0)
+
+            # 检查选中用户的Cookie是否已存在且有效
+            existing_cookie = self.get_cookie(selected_user['num'])
+            if existing_cookie:
+                print(f"✅ 账号 {selected_user['email']} 的Cookie仍然有效，无需重新登录")
+                self.logger.info(f"用户 {selected_user['num']} 的Cookie有效，跳过登录")
+                return
+
+            # 登录获取Cookie
+            self._selenium_login(selected_user)
+
+        except KeyboardInterrupt:
+            print("\n👋 登录管理器已退出")
+            sys.exit(0)
+
+    def _save_user_cookie(self, user, cookie_data):
+        """保存用户Cookie，支持多用户管理"""
+        try:
+            # 读取现有的cookies文件
+            existing_cookies = []
+            if self.cookie_file.exists():
+                try:
+                    with open(self.cookie_file, 'r', encoding='utf-8') as f:
+                        content = json.load(f)
+                        if isinstance(content, list):
+                            existing_cookies = content
+                except json.JSONDecodeError:
+                    self.logger.warning("Cookie文件格式错误，将创建新文件")
+                    existing_cookies = []
+
+            # 查找是否已存在该用户的Cookie
+            user_found = False
+            for i, existing_cookie in enumerate(existing_cookies):
+                if existing_cookie.get('user_id') == user['num']:
+                    # 用户已存在，覆盖
+                    existing_cookies[i] = cookie_data
+                    user_found = True
+                    self.logger.info(f"更新用户 {user['num']} 的Cookie")
+                    print(f"✅ 用户 {user['num']} 的Cookie已更新")
+                    break
+
+            if not user_found:
+                # 用户不存在，追加
+                existing_cookies.append(cookie_data)
+                self.logger.info(f"添加用户 {user['num']} 的Cookie")
+                print(f"✅ 用户 {user['num']} 的Cookie已添加")
+
+            # 按user_id排序
+            existing_cookies.sort(key=lambda x: x.get('user_id', 0))
+
+            # 保存更新后的cookies
+            with open(self.cookie_file, 'w', encoding='utf-8') as f:
+                json.dump(existing_cookies, f, ensure_ascii=False, indent=2)
+
+            return True
+
+        except Exception as e:
+            self.logger.exception(f"保存Cookie时出错: {str(e)}")
+            print(f"❌ 保存Cookie时出错: {str(e)}")
+            return False
 
     def _selenium_login(self, user):
         """使用Selenium模拟登录获取Cookie"""
@@ -257,8 +381,7 @@ class AuthManager:
                         'expires_date': datetime.fromtimestamp(token_cookie['expiry']).strftime('%Y-%m-%d %H:%M:%S') if 'expiry' in token_cookie else None
                     }
 
-                    with open(self.cookie_file, 'w', encoding='utf-8') as f:
-                        json.dump(cookie_data, f, ensure_ascii=False, indent=2)
+                    self._save_user_cookie(user, cookie_data)
 
                     print(f"✅ Cookie已保存，有效期至 {cookie_data.get('expires_date', '未知')}")
 
@@ -288,29 +411,64 @@ class AuthManager:
             print("  3. 系统防火墙或杀毒软件未阻止程序运行")
             sys.exit(1)
 
-    def get_cookie(self):
-        """获取Cookie字符串，如果已过期则提醒重新登录"""
+    def get_cookie(self, user_id=None):
+        """获取Cookie字符串，支持多用户查找"""
         try:
             if not self.cookie_file.exists():
                 self.logger.error("Cookie文件不存在")
-                print("❌ Cookie文件不存在，请先登录")
                 return None
 
             with open(self.cookie_file, 'r', encoding='utf-8') as f:
-                cookie_data = json.load(f)
+                content = json.load(f)
 
+            if not isinstance(content, list):
+                self.logger.error("Cookie文件格式不正确，需要数组格式")
+                return None
+
+            cookies_list = content
+
+            # 如果指定了user_id，查找特定用户
+            if user_id is not None:
+                for cookie_data in cookies_list:
+                    if cookie_data.get('user_id') == user_id:
+                        validated_cookie = self._validate_cookie(cookie_data)
+                        if validated_cookie:
+                            return validated_cookie
+                        else:
+                            return None
+
+                return None
+            else:
+                # 如果没有指定user_id，返回第一个有效的Cookie
+                for cookie_data in cookies_list:
+                    validated_cookie = self._validate_cookie(cookie_data)
+                    if validated_cookie:
+                        return validated_cookie
+
+                return None
+
+        except Exception as e:
+            self.logger.exception(f"获取Cookie时出错: {str(e)}")
+            return None
+
+    def _validate_cookie(self, cookie_data):
+        """验证Cookie是否有效"""
+        try:
             # 检查Cookie是否过期
             if 'expires' in cookie_data and cookie_data['expires']:
                 expires = datetime.fromtimestamp(cookie_data['expires'])
                 if expires < datetime.now():
-                    self.logger.warning("Cookie已过期")
-                    print("⚠️ Cookie已过期，请重新登录")
+                    self.logger.warning(f"用户 {cookie_data.get('user_id', 'Unknown')} 的Cookie已过期")
                     return None
+
+            # 检查必要字段是否存在
+            if 'Cookie' not in cookie_data:
+                self.logger.warning(f"用户 {cookie_data.get('user_id', 'Unknown')} 的Cookie数据不完整")
+                return None
 
             # 返回Cookie字符串
             return cookie_data['Cookie']
 
         except Exception as e:
-            self.logger.exception(f"获取Cookie时出错: {str(e)}")
-            print(f"❌ 获取Cookie时出错: {str(e)}")
+            self.logger.exception(f"验证Cookie时出错: {str(e)}")
             return None
