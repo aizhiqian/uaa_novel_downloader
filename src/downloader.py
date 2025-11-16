@@ -305,6 +305,7 @@ class NovelDownloader:
 
             print(f"\n✅ 下载完成！")
             print(f"📄 文件保存在: {output_path}")
+            print(f"👤 当前使用账号ID: {self.user_id}")
 
             # 如果下载完所有章节，清除进度
             # if end_chapter == total_chapters:
