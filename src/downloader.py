@@ -213,6 +213,7 @@ class NovelDownloader:
             # 获取小说信息
             novel_info = self.get_novel_info(novel_id)
             title = novel_info['title']
+            author = novel_info['author']
             volumes = novel_info['volumes']
             total_chapters = novel_info['total_chapters']
 
@@ -228,7 +229,9 @@ class NovelDownloader:
 
             # 创建文件名
             safe_title = re.sub(r'[<>:"/\\|?*]', '_', title)
-            output_path = Config.OUTPUT_DIR / f"{safe_title}.txt"
+            safe_author = re.sub(r'[<>:"/\\|?*]', '_', author)
+            output_filename = f"《{safe_title}》作者：{safe_author}.txt"
+            output_path = Config.OUTPUT_DIR / output_filename
 
             print(f"\n📚 开始下载《{title}》")
             print(f"📝 作者：{novel_info['author']}")
